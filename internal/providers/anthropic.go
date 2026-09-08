@@ -50,7 +50,8 @@ type AnthropicProvider struct {
 	client       *http.Client
 	retryConfig  RetryConfig
 	middlewares  RequestMiddleware // composed middleware chain (nil = no-op)
-	registry     ModelRegistry    // model resolution registry (nil = skip)
+	registry     ModelRegistry     // model resolution registry (nil = skip)
+	withOpenCode bool              // force OpenCode client-identification headers (auto-detected from baseURL when false)
 }
 
 // NewAnthropicProvider creates a new Anthropic provider.
@@ -102,6 +103,13 @@ func WithAnthropicBaseURL(baseURL string) AnthropicOption {
 	}
 }
 
+// WithAnthropicOpenCodeIdentification forces OpenCode client-identification
+// headers (User-Agent + x-opencode-session). Normally unnecessary: detection is
+// automatic when the baseURL hostname is opencode.ai.
+func WithAnthropicOpenCodeIdentification(enabled bool) AnthropicOption {
+	return func(p *AnthropicProvider) { p.withOpenCode = enabled }
+}
+
 func (p *AnthropicProvider) Name() string           { return p.name }
 func (p *AnthropicProvider) DefaultModel() string   { return p.defaultModel }
 func (p *AnthropicProvider) SupportsThinking() bool { return true }
@@ -133,6 +141,7 @@ func (p *AnthropicProvider) middlewareConfig(model string, req ChatRequest) Midd
 }
 
 func (p *AnthropicProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	ctx = withOpenCodeSession(ctx, extractStringOpt(req.Options, OptSessionKey))
 	model := resolveAnthropicModel(req.Model, p.defaultModel, p.registry)
 
 	body := p.buildRequestBody(model, req, false)
@@ -177,6 +186,13 @@ func (p *AnthropicProvider) doRequest(ctx context.Context, body any) (io.ReadClo
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("x-api-key", p.apiKey)
 	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
+
+	// OpenCode Zen/Go abuse monitoring requires a real client identity
+	// (User-Agent + per-conversation x-opencode-session). Auto-detected by
+	// hostname; explicit override via WithAnthropicOpenCodeIdentification.
+	if p.withOpenCode || IsOpenCodeAPIBase(p.baseURL) {
+		applyOpenCodeHeaders(httpReq.Header, openCodeSessionFromCtx(ctx))
+	}
 
 	// Add beta header for interleaved thinking when thinking is enabled
 	if bodyMap, ok := body.(map[string]any); ok {

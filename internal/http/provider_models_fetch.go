@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 )
 
 // fetchAnthropicModels calls the Anthropic models API.
@@ -23,6 +24,9 @@ func fetchAnthropicModels(ctx context.Context, apiKey, apiBase string) ([]ModelI
 	}
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
+	if providers.IsOpenCodeAPIBase(base) {
+		req.Header.Set("User-Agent", providers.OpenCodeUserAgent())
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -97,6 +101,9 @@ func fetchOpenAIModels(ctx context.Context, apiBase, apiKey string, extraHeaders
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if providers.IsOpenCodeAPIBase(apiBase) {
+		req.Header.Set("User-Agent", providers.OpenCodeUserAgent())
+	}
 	for k, v := range extraHeaders {
 		req.Header.Set(k, v)
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
@@ -31,6 +32,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	providers.SetAppVersion(Version)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: config.json or $GOCLAW_CONFIG)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable debug logging")
 	rootCmd.PersistentFlags().StringVar(&gatewayServerOverride, "server", "", "gateway server URL override")

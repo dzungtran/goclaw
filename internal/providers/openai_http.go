@@ -51,6 +51,12 @@ func (p *OpenAIProvider) doRequest(ctx context.Context, body any) (io.ReadCloser
 	if p.siteTitle != "" {
 		httpReq.Header.Set("X-Title", p.siteTitle)
 	}
+	// OpenCode Zen/Go abuse monitoring requires a real client identity:
+	// dedicated User-Agent + per-conversation x-opencode-session header.
+	// Applied before extraHeaders so an explicit static header still wins.
+	if p.isOpenCodeEndpoint() {
+		applyOpenCodeHeaders(httpReq.Header, openCodeSessionFromCtx(ctx))
+	}
 	// Static per-provider headers (e.g. fixed User-Agent for kimi_coding).
 	// Applied after the standard headers so providers can override them if needed.
 	for k, v := range p.extraHeaders {

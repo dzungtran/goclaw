@@ -25,6 +25,7 @@ type OpenAIProvider struct {
 	noAuthHeader    bool              // when true, doRequest() skips setting Authorization (e.g. Vertex OAuth transport injects its own)
 	ollamaNumCtx    *int              // optional Ollama options.num_ctx override (nil = use queried or default value)
 	thinkingEnabled *bool             // provider-level override for "think" on Ollama endpoints (nil = default off)
+	withOpenCode    bool              // force OpenCode client-identification headers (auto-detected from apiBase when false)
 }
 
 func NewOpenAIProvider(name, apiKey, apiBase, defaultModel string) *OpenAIProvider {
@@ -111,6 +112,14 @@ func (p *OpenAIProvider) WithMiddlewares(mws ...RequestMiddleware) *OpenAIProvid
 // WithProviderType sets the DB provider_type for correct API endpoint routing in media tools.
 func (p *OpenAIProvider) WithProviderType(pt string) *OpenAIProvider {
 	p.providerType = pt
+	return p
+}
+
+// WithOpenCodeIdentification forces OpenCode client-identification headers
+// (User-Agent + x-opencode-session) on or off. When not called, detection is
+// automatic via the apiBase hostname (IsOpenCodeAPIBase).
+func (p *OpenAIProvider) WithOpenCodeIdentification(enabled bool) *OpenAIProvider {
+	p.withOpenCode = enabled
 	return p
 }
 

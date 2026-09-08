@@ -40,6 +40,13 @@ func isDashScopeAPIBase(apiBase string) bool {
 	return strings.Contains(strings.ToLower(apiBase), "dashscope")
 }
 
+// isOpenCodeEndpoint returns true when this provider targets OpenCode Zen/Go.
+// Detection is strictly the parsed apiBase hostname (opencode.ai + subdomains),
+// or an explicit WithOpenCodeIdentification override.
+func (p *OpenAIProvider) isOpenCodeEndpoint() bool {
+	return p.withOpenCode || IsOpenCodeAPIBase(p.apiBase)
+}
+
 // isOllamaEndpoint returns true for local or self-hosted Ollama instances.
 // Ollama models such as qwq and deepseek-r1 have thinking enabled by default;
 // goclaw must send think=false to suppress it unless the user explicitly opts in.

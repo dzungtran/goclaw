@@ -61,6 +61,11 @@ func (a *OpenAIAdapter) ToRequest(req ChatRequest) ([]byte, http.Header, error) 
 	if a.provider.siteTitle != "" {
 		h.Set("X-Title", a.provider.siteTitle)
 	}
+	// OpenCode identification (UA; no conversation context on this path).
+	// Mirrored before extraHeaders so an explicit static header still wins.
+	if a.provider.isOpenCodeEndpoint() {
+		applyOpenCodeHeaders(h, "")
+	}
 	// Mirror doRequest: provider-static headers (e.g. kimi_coding User-Agent).
 	for k, v := range a.provider.extraHeaders {
 		h.Set(k, v)
