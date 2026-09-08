@@ -9,7 +9,7 @@ import (
 )
 
 func (p *AnthropicProvider) ChatStream(ctx context.Context, req ChatRequest, onChunk func(StreamChunk)) (*ChatResponse, error) {
-	ctx = withOpenCodeSession(ctx, extractStringOpt(req.Options, OptSessionKey))
+	ctx = WithUpstreamSession(ctx, extractStringOpt(req.Options, OptSessionKey))
 	model := resolveAnthropicModel(req.Model, p.defaultModel, p.registry)
 	// stripThinking: when true, drop reasoning tokens from user-visible output.
 	// Billing counters (thinkingChars → Usage.ThinkingTokens) and tool-passback

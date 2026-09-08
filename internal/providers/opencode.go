@@ -39,9 +39,15 @@ func OpenCodeUserAgent() string {
 
 type openCodeSessionKey struct{}
 
-// withOpenCodeSession carries the conversation's session key to the transport
-// layer so doRequest can attach x-opencode-session. No-op when sessionKey is empty.
-func withOpenCodeSession(ctx context.Context, sessionKey string) context.Context {
+// WithUpstreamSession carries the conversation's session key to the transport
+// layer so doRequest can attach x-opencode-session. This is the identity
+// channel for call sites that build their own ChatRequest outside the agent
+// pipeline (background summarizers, hooks, tool-internal LLM calls).
+//
+// It deliberately does NOT use ChatRequest.Options[OptSessionKey]: that option
+// has provider-specific side effects (Claude CLI --resume, ACP continuity)
+// which must not trigger for sidecar calls. No-op when sessionKey is empty.
+func WithUpstreamSession(ctx context.Context, sessionKey string) context.Context {
 	if sessionKey == "" {
 		return ctx
 	}
@@ -51,6 +57,13 @@ func withOpenCodeSession(ctx context.Context, sessionKey string) context.Context
 func openCodeSessionFromCtx(ctx context.Context) string {
 	v, _ := ctx.Value(openCodeSessionKey{}).(string)
 	return v
+}
+
+// UpstreamSessionFromContext returns the conversation identity carried by
+// WithUpstreamSession ("" when absent). Exported so background workers and
+// their tests can observe propagation without reaching the network.
+func UpstreamSessionFromContext(ctx context.Context) string {
+	return openCodeSessionFromCtx(ctx)
 }
 
 // applyOpenCodeHeaders sets the identification headers required by OpenCode.

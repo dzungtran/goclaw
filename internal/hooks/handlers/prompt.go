@@ -165,6 +165,10 @@ func (h *PromptHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev ho
 	if ev.TenantID != uuid.Nil {
 		callCtx = store.WithTenantID(callCtx, ev.TenantID)
 	}
+	// Conversation identity for upstream client-identification headers
+	// (OpenCode x-opencode-session). Dedicated context channel — must not use
+	// Options[OptSessionKey] (would trigger session-resume in other providers).
+	callCtx = providers.WithUpstreamSession(callCtx, ev.SessionID)
 	resp, err := h.UsageCaps.Chat(callCtx, provider, req, usagecaps.ChatOptions{
 		TenantID:        ev.TenantID,
 		ProviderName:    provider.Name(),

@@ -499,6 +499,9 @@ func bridgeContextMiddleware(gatewayToken string, agentStore store.AgentStore, n
 		}
 		if sessionKey != "" {
 			ctx = tools.WithToolSessionKey(ctx, sessionKey)
+			// Conversation identity for upstream client-identification headers
+			// (OpenCode x-opencode-session) on gateway-driven LLM calls.
+			ctx = providers.WithUpstreamSession(ctx, sessionKey)
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))

@@ -238,3 +238,86 @@ func TestOpenAIAdapter_OpenCodeHeaders_Mirrored(t *testing.T) {
 		t.Errorf("adapter User-Agent = %q, want %q", got, OpenCodeUserAgent())
 	}
 }
+
+// The context channel carries identity for call sites that build their own
+// ChatRequest outside the agent pipeline (background summarizers, hooks,
+// tool-internal LLM calls) — no Options required.
+func TestOpenAIProvider_OpenCodeHeaders_FromUpstreamSessionCtx(t *testing.T) {
+	srv, captured := newOpenCodeJSONServer(t)
+	p := NewOpenAIProvider("opencode-go", "oc-key", srv.URL, "glm-5.3-flash").
+		WithOpenCodeIdentification(true)
+	p.retryConfig.Attempts = 1
+
+	ctx := WithUpstreamSession(context.Background(), "ctx-session-7")
+	if _, err := p.Chat(ctx, ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	}); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if got := captured.Get(OpenCodeSessionHeader); got != "ctx-session-7" {
+		t.Errorf("%s = %q, want ctx-carried session", OpenCodeSessionHeader, got)
+	}
+	if got := captured.Get("User-Agent"); got != OpenCodeUserAgent() {
+		t.Errorf("User-Agent = %q, want %q", got, OpenCodeUserAgent())
+	}
+}
+
+// Explicit pipeline Options win over the context-carried value.
+func TestOpenAIProvider_OpenCodeHeaders_OptionsWinOverCtx(t *testing.T) {
+	srv, captured := newOpenCodeJSONServer(t)
+	p := NewOpenAIProvider("opencode-go", "oc-key", srv.URL, "glm-5.3-flash").
+		WithOpenCodeIdentification(true)
+	p.retryConfig.Attempts = 1
+
+	ctx := WithUpstreamSession(context.Background(), "ctx-session")
+	if _, err := p.Chat(ctx, ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+		Options:  map[string]any{OptSessionKey: "opt-session"},
+	}); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if got := captured.Get(OpenCodeSessionHeader); got != "opt-session" {
+		t.Errorf("%s = %q, want Options value to win", OpenCodeSessionHeader, got)
+	}
+}
+
+func TestAnthropicProvider_OpenCodeHeaders_FromUpstreamSessionCtx(t *testing.T) {
+	var captured http.Header
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"x","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}`))
+	}))
+	defer srv.Close()
+
+	p := NewAnthropicProvider("oc-key",
+		WithAnthropicBaseURL(srv.URL),
+		WithAnthropicOpenCodeIdentification(true),
+	)
+	p.retryConfig.Attempts = 1
+
+	ctx := WithUpstreamSession(context.Background(), "ctx-session-9")
+	if _, err := p.Chat(ctx, ChatRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	}); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if got := captured.Get(OpenCodeSessionHeader); got != "ctx-session-9" {
+		t.Errorf("%s = %q, want ctx-carried session", OpenCodeSessionHeader, got)
+	}
+}
+
+func TestUpstreamSessionFromContext(t *testing.T) {
+	if got := UpstreamSessionFromContext(context.Background()); got != "" {
+		t.Errorf("empty ctx = %q, want \"\"", got)
+	}
+	ctx := WithUpstreamSession(context.Background(), "s-1")
+	if got := UpstreamSessionFromContext(ctx); got != "s-1" {
+		t.Errorf("wrapped ctx = %q, want %q", got, "s-1")
+	}
+	// Empty key is a no-op: previous value (here: none) survives.
+	empty := WithUpstreamSession(context.Background(), "")
+	if got := UpstreamSessionFromContext(empty); got != "" {
+		t.Errorf("empty wrap = %q, want \"\"", got)
+	}
+}

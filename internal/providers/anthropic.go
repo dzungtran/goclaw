@@ -141,7 +141,7 @@ func (p *AnthropicProvider) middlewareConfig(model string, req ChatRequest) Midd
 }
 
 func (p *AnthropicProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	ctx = withOpenCodeSession(ctx, extractStringOpt(req.Options, OptSessionKey))
+	ctx = WithUpstreamSession(ctx, extractStringOpt(req.Options, OptSessionKey))
 	model := resolveAnthropicModel(req.Model, p.defaultModel, p.registry)
 
 	body := p.buildRequestBody(model, req, false)

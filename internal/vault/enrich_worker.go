@@ -95,6 +95,12 @@ type EnrichWorker struct {
 	cancelFuncs *sync.Map // key: tenantID string, value: context.CancelFunc
 }
 
+// vaultEnrichSessionID returns the stable synthetic conversation identity for
+// vault enrichment batches, scoped to the batch (tenant) key.
+func vaultEnrichSessionID(tenantKey string) string {
+	return "goclaw:vault-enrich:" + tenantKey
+}
+
 // resolveProviderForTenant delegates to shared background provider resolution.
 func (w *EnrichWorker) resolveProviderForTenant(ctx context.Context, tenantID string) (providers.Provider, string) {
 	tid, err := uuid.Parse(tenantID)
@@ -216,6 +222,12 @@ func (w *EnrichWorker) Handle(ctx context.Context, event eventbus.DomainEvent) e
 
 	// Create per-tenant cancel context for stop capability.
 	cancelCtx, cancel := context.WithCancel(ctx)
+	// Synthetic but stable conversation identity for the batch: enrichment
+	// chunks mix documents from many sessions, so no single real conversation
+	// exists to attribute. OpenCode endpoints require x-opencode-session on
+	// chat routes (MissingSessionID 400 otherwise); the tenant-scoped constant
+	// keeps routing affinity stable without impersonating a conversation.
+	cancelCtx = providers.WithUpstreamSession(cancelCtx, vaultEnrichSessionID(payload.TenantID))
 	w.cancelFuncs.Store(payload.TenantID, cancel)
 	w.processBatch(cancelCtx, key)
 	// Clean up after batch completes naturally.

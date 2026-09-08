@@ -18,9 +18,11 @@ type mockClassifyProvider struct {
 	responses []string
 	errors    []error
 	calls     int
+	lastCtx   context.Context
 }
 
 func (m *mockClassifyProvider) Chat(ctx context.Context, req providers.ChatRequest) (*providers.ChatResponse, error) {
+	m.lastCtx = ctx
 	idx := m.calls
 	m.calls++
 	if idx < len(m.errors) && m.errors[idx] != nil {
@@ -182,4 +184,3 @@ func TestCallClassifyWithRetry_RetriesAndBackoffs(t *testing.T) {
 		t.Errorf("Timeouts should escalate: %v", enrichRetryTimeouts)
 	}
 }
-

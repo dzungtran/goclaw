@@ -16,6 +16,12 @@ import (
 	usagecaps "github.com/nextlevelbuilder/goclaw/internal/usage/caps"
 )
 
+// llmChat is the usage-capped chat call used for summarization.
+// Interface (not *usagecaps.Service) so tests can stub the LLM boundary.
+type llmChat interface {
+	Chat(ctx context.Context, provider providers.Provider, req providers.ChatRequest, opts usagecaps.ChatOptions) (*providers.ChatResponse, error)
+}
+
 // episodicWorker handles session.completed events → creates episodic summaries.
 type episodicWorker struct {
 	store         store.EpisodicStore
@@ -24,7 +30,7 @@ type episodicWorker struct {
 	registry      *providers.Registry     // provider resolution
 	eventBus      eventbus.DomainEventBus
 	alertDeps     bgalert.AlertDeps
-	usageCaps     *usagecaps.Service
+	usageCaps     llmChat
 	agents        store.AgentCRUDStore // resolves per-agent request budget for the preflight guard
 }
 
@@ -57,6 +63,11 @@ func (w *episodicWorker) Handle(ctx context.Context, event eventbus.DomainEvent)
 		return fmt.Errorf("episodic: invalid agent_id %q: %w", event.AgentID, err)
 	}
 	ctx = store.WithAgentID(ctx, agentUUID)
+	// Carry the conversation identity for upstream client-identification
+	// headers (OpenCode x-opencode-session). Uses a dedicated context channel,
+	// NOT Options[OptSessionKey] — that option triggers session-resume behavior
+	// in other providers (Claude CLI --resume, ACP continuity).
+	ctx = providers.WithUpstreamSession(ctx, payload.SessionKey)
 	// Wire the calling agent's request budget so nested LLM summarization calls
 	// pass the agent-only preflight guard instead of failing closed with an
 	// AgentBudgetWiringError (purpose=episodic-summary).

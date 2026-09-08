@@ -129,6 +129,10 @@ func (h *ProvidersHandler) handleVerifyProvider(w http.ResponseWriter, r *http.R
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 	ctx = store.WithTenantID(ctx, p.TenantID)
+	// Synthetic but stable identity for the health-check ping: OpenCode
+	// endpoints require x-opencode-session on chat routes and would 400
+	// without it. Harmless for all other providers.
+	ctx = providers.WithUpstreamSession(ctx, "goclaw:provider-verify")
 
 	reqChat := providers.ChatRequest{
 		Messages: []providers.Message{

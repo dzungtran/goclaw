@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	"github.com/nextlevelbuilder/goclaw/internal/tracing"
@@ -19,6 +20,10 @@ func (l *Loop) Run(ctx context.Context, req RunRequest) (*RunResult, error) {
 	l.activeRuns.Add(1)
 	defer l.activeRuns.Add(-1)
 	ctx = withDelegationArtifactTextRedactor(ctx, &req)
+	// Conversation identity for upstream client-identification headers
+	// (OpenCode x-opencode-session). Covers all in-loop sidecar LLM calls
+	// (memory flush, compaction, title/intent) that build their own requests.
+	ctx = providers.WithUpstreamSession(ctx, req.SessionKey)
 
 	// Per-run emit wrapper: enriches every AgentEvent with delegation + routing context.
 	emitRun := func(event AgentEvent) {
